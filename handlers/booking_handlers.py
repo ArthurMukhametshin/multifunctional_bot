@@ -159,7 +159,7 @@ async def show_event_details(callback: CallbackQuery):
             f"**{event['ShortName']}**\n\n"
             f"**дата:** {event_date_str}\n"
             f"**время:** {event_time_str}\n"
-            f"**стоимость:** {'Бесплатно' if event['Price'] == 0 else f'{event["Price"]} руб.'}\n\n"
+            f"**стоимость:** {'Бесплатно' if event['Price'] == 0 else f'{event['Price']} руб.'}\n\n"
             f"{event['Description']}"
         )
         reply_markup = kb.event_details_keyboard(event_id)
