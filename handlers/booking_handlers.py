@@ -301,15 +301,17 @@ async def show_confirmation_summary(message: Message, state: FSMContext):
     Вызывается либо после ввода промокода, либо после отказа от него.
     """
     user_data = await state.get_data()
-    promo_code_info = f"\nПромокод: {user_data['promo_code']}" if 'promo_code' in user_data else ""
+    promo_code_info = f"\nпромокод: {user_data['promo_code']}" if 'promo_code' in user_data else ""
+
+    price_text = 'бесплатно' if user_data['price'] == 0 else f"{user_data['price']} руб."
 
     text = (
-        "готово! пожалуйста, проверь все данные:\n\n"
-        f"что сотворим: **{user_data['event_name']}**\n"
+        "пожалуйста, проверь данные:\n"
+        f"мероприятие: **{user_data['event_name']}**\n"
         f"ФИО: {user_data['full_name']}\n"
-        f"твой номер: {user_data['phone_number']}\n"
-        f"стоимость: **{'бесплатно!' if user_data['price'] == 0 else f'{user_data['price']} руб.'}**\n\n"
-        "нажимая «подтверждаю», ты соглашаешься с Политикой конфиденциальности"
+        f"телефон: {user_data['phone_number']}{promo_code_info}\n"
+        f"итоговая стоимость: **{price_text}**\n\n"
+        "нажимая 'подтверждаю', ты соглашаешься с Политикой конфиденциальности."
     )
 
     await message.answer(
