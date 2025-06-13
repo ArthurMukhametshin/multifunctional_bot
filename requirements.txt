@@ -5,3 +5,4 @@ oauth2client
 apscheduler
 pydantic-settings
 Pillow
+aiosqlite
