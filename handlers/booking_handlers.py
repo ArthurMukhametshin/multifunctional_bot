@@ -121,6 +121,7 @@ async def show_events_afisha(callback: CallbackQuery):
     )
     await callback.answer()
 
+
 @router.callback_query(F.data.startswith("event_"))
 async def show_event_details(callback: CallbackQuery):
     """
@@ -130,7 +131,6 @@ async def show_event_details(callback: CallbackQuery):
     event_id = int(callback.data.split("_")[1])
     user_id = callback.from_user.id
 
-    # 1. ПРОВЕРЯЕМ, ЕСТЬ ЛИ УЖЕ БИЛЕТ
     has_ticket = await db.check_if_ticket_exists(user_id, event_id)
     event = await gs.get_event_by_id_from_sheet(event_id)
 
@@ -138,34 +138,34 @@ async def show_event_details(callback: CallbackQuery):
         await callback.answer("Мероприятие не найдено.", show_alert=True)
         return
 
-    # Форматируем дату и время в любом случае
     event_date_str = event['datetime_obj'].strftime('%d.%m.%Y')
     event_time_str = event['datetime_obj'].strftime('%H:%M')
 
-    # 2. В ЗАВИСИМОСТИ ОТ РЕЗУЛЬТАТА ПОКАЗЫВАЕМ РАЗНЫЕ СООБЩЕНИЯ
+    text = ""
+    reply_markup = None
+
     if has_ticket:
-        # Если билет уже есть, сообщаем об этом
         text = (
             f"**{event['ShortName']}**\n\n"
-            f"**дата:** {event_date_str}\n"
-            f"**время:** {event_time_str}\n\n"
-            "кажется у тебя уже есть билетик на это событие!\n"
+            f"дата: {event_date_str}\n"
+            f"время: {event_time_str}\n\n"
+            "у тебя уже есть билетик на это событие! "
             "можешь посмотреть его в разделе «посмотрю мои билеты»"
         )
         reply_markup = kb.already_booked_keyboard()
     else:
-        # Если билета нет, показываем стандартное описание с кнопкой покупки
+        # ИСПОЛЬЗУЕМ ОДИНАРНЫЕ КАВЫЧКИ ДЛЯ КЛЮЧА 'Price'
+        price_text = 'бесплатно' if event['Price'] == 0 else f"{event['Price']} руб."
+
         text = (
             f"**{event['ShortName']}**\n\n"
             f"дата: {event_date_str}\n"
             f"время: {event_time_str}\n"
-            # Используем одинарные кавычки 'Price' внутри двойных кавычек f-строки
-            f"стоимость: {'бесплатно' if event['Price'] == 0 else f'{event['Price']} руб.'}\n\n"
+            f"стоимость: {price_text}\n\n"
             f"{event['Description']}"
         )
         reply_markup = kb.event_details_keyboard(event_id)
 
-    # 3. ОТПРАВЛЯЕМ СООБЩЕНИЕ
     await callback.message.edit_text(
         text,
         reply_markup=reply_markup,
