@@ -157,9 +157,10 @@ async def show_event_details(callback: CallbackQuery):
         # Если билета нет, показываем стандартное описание с кнопкой покупки
         text = (
             f"**{event['ShortName']}**\n\n"
-            f"**дата:** {event_date_str}\n"
-            f"**время:** {event_time_str}\n"
-            f"**стоимость:** {'Бесплатно' if event['Price'] == 0 else f'{event['Price']} руб.'}\n\n"
+            f"дата: {event_date_str}\n"
+            f"время: {event_time_str}\n"
+            # Используем одинарные кавычки 'Price' внутри двойных кавычек f-строки
+            f"стоимость: {'бесплатно' if event['Price'] == 0 else f'{event['Price']} руб.'}\n\n"
             f"{event['Description']}"
         )
         reply_markup = kb.event_details_keyboard(event_id)
@@ -307,7 +308,7 @@ async def show_confirmation_summary(message: Message, state: FSMContext):
         f"что сотворим: **{user_data['event_name']}**\n"
         f"ФИО: {user_data['full_name']}\n"
         f"твой номер: {user_data['phone_number']}\n"
-        f"стоимость: **{'бесплатно!' if user_data['price'] == 0 else f'{user_data["price"]} руб.'}**\n\n"
+        f"стоимость: **{'бесплатно!' if user_data['price'] == 0 else f'{user_data['price']} руб.'}**\n\n"
         "нажимая «подтверждаю», ты соглашаешься с Политикой конфиденциальности"
     )
 
@@ -317,7 +318,6 @@ async def show_confirmation_summary(message: Message, state: FSMContext):
         parse_mode="Markdown"
     )
     await state.set_state(Booking.confirming_data)
-
 
 @router.callback_query(Booking.confirming_data, F.data.startswith("book_"))
 async def confirm_booking(callback: CallbackQuery, state: FSMContext, bot: Bot):
