@@ -311,7 +311,7 @@ async def show_confirmation_summary(message: Message, state: FSMContext):
         f"ФИО: {user_data['full_name']}\n"
         f"телефон: {user_data['phone_number']}{promo_code_info}\n"
         f"итоговая стоимость: **{price_text}**\n\n"
-        "нажимая 'подтверждаю', ты соглашаешься с Политикой конфиденциальности."
+        "нажимая кнопку ниже, ты соглашаешься с Политикой конфиденциальности"
     )
 
     await message.answer(
@@ -347,7 +347,6 @@ async def confirm_booking(callback: CallbackQuery, state: FSMContext, bot: Bot):
         await issue_ticket(
             callback=callback,
             bot=bot,
-            scheduler=scheduler,
             order_id=order_id,
             event=event,
             price=0,
@@ -440,7 +439,7 @@ async def check_payment(callback: CallbackQuery, bot: Bot):
         original_price = event['Price']
 
         # Вызываем нашу общую вспомогательную функцию для выдачи билета
-        await issue_ticket(callback, bot, scheduler, order_id, event, price, promo_code, original_price, payment_id)
+        await issue_ticket(callback, bot, order_id, event, price, promo_code, original_price, payment_id)
 
     elif payment_info.status == 'pending':
         await callback.answer("платеж еще не прошел. подожди минутку и попробуй снова 🥹", show_alert=True)
