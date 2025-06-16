@@ -198,14 +198,14 @@ async def start_booking_process(callback: CallbackQuery, state: FSMContext):
     loyalty_count = await db.get_loyalty_count(callback.from_user.id)
 
     if loyalty_count >= 5:
-        await state.update_data(price=0)  # Билет будет бесплатным
+        await state.update_data(price=0, is_loyalty_ticket=True)
         text = (
             f"🎉 поздравляем! ты накопил {loyalty_count} посещений, и это мероприятие для тебя бесплатное!\n\n"
             f"мероприятие: {event['ShortName']}\n\n"
             "для оформления бесплатного билетика, пожалуйста, напиши свое ФИО"
         )
     else:
-        remaining = 5 - loyalty_count
+        await state.update_data(is_loyalty_ticket=False)
         text = (
             f"твой выбор — в самое сердце!\n\nдля получения билета на «{event['ShortName']}» напиши свое ФИО\n\n"
             # f"💡 *Осталось накопить {remaining} платных посещений до бесплатного билета!*"
@@ -282,7 +282,7 @@ async def process_promo_code(message: Message, state: FSMContext):
     new_price = int(original_price * (1 - discount / 100))
 
     await state.update_data(price=new_price, promo_code=promo_code, promo_details=promo_details)
-    await message.answer(f"промокод принят! 🤸 твоя скидка — {discount}%. новая цена: {new_price} руб.")
+    await message.answer(f"промокод принят! твоя скидка — {discount}%. новая цена: {new_price} руб.")
 
     await show_confirmation_summary(message, state)
 
@@ -330,29 +330,23 @@ async def confirm_booking(callback: CallbackQuery, state: FSMContext, bot: Bot):
     price = user_data.get('price')
     original_price = user_data.get('original_price')
     promo_code = user_data.get('promo_code')
+    is_loyalty = user_data.get('is_loyalty_ticket', False)
+
     event = await gs.get_event_by_id_from_sheet(user_data['event_id'])
 
-    # СЦЕНАРИЙ 1: Бесплатный билет (по лояльности или из-за промокода)
+    # Сценарий 1: Бесплатный билет
     if price == 0:
         await callback.message.edit_text("оформляем твой бесплатный билетик...")
 
-        # Определяем, это билет по лояльности или просто бесплатный
-        payment_id_for_db = 'loyalty_program' if original_price > 0 else 'generated_ticket'
+        # --- НОВАЯ, НАДЕЖНАЯ ЛОГИКА ОПРЕДЕЛЕНИЯ ТИПА ---
+        payment_id_for_db = 'loyalty_program' if is_loyalty else 'generated_ticket'
 
         order_id = await db.create_order(callback.from_user.id, user_data['event_id'], 0)
-        # Сохраняем правильный идентификатор в БД
         await db.update_order_status(order_id, payment_id_for_db, 'paid')
 
-        # Вызываем общую функцию для выдачи билета
         await issue_ticket(
-            callback=callback,
-            bot=bot,
-            order_id=order_id,
-            event=event,
-            price=0,
-            promo_code=promo_code,
-            original_price=original_price,
-            payment_id=payment_id_for_db  # Передаем наш идентификатор
+            callback=callback, bot=bot, order_id=order_id, event=event, price=0,
+            promo_code=promo_code, original_price=original_price, payment_id=payment_id_for_db
         )
         await state.clear()
         return

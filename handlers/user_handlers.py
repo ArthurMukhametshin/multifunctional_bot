@@ -154,41 +154,47 @@ async def final_cancel_booking(callback: CallbackQuery):
     order_id = int(callback.data.split("_")[2])
     order = await db.get_order_by_id(order_id)
     if not order:
-        await callback.message.edit_text("Ошибка: не удалось найти информацию о заказе.")
+        await callback.message.edit_text("Ошибка: не удалось найти информацию о вашем заказе.")
         return
 
     event = await gs.get_event_by_id_from_sheet(order[2])
     if not event:
-        await callback.message.edit_text("Ошибка: не удалось найти информацию о мероприятии.")
+        await callback.message.edit_text(
+            "Ошибка: не удалось найти информацию о мероприятии. Возможно, оно было удалено.")
         return
 
-    # 1. Проверяем, можно ли отменить билет
+    # 1. Проверяем, можно ли отменить билет (48-часовое окно)
     time_diff = event['datetime_obj'] - datetime.now()
     if time_diff.total_seconds() <= 48 * 3600:
         await callback.answer("упс, до мероприятия осталось менее 48 часов, отмена уже невозможна 🥲", show_alert=True)
         await callback.message.edit_text(
-            "К сожалению, время для отмены этого билета истекло.",
-            reply_markup=kb.ticket_actions_keyboard(order_id)
+            f"твой билетик на мероприятие:\n**{event['ShortName']}**\n\n"
+            "к сожалению, время для отмены уже истекло 🥲",
+            reply_markup=kb.ticket_actions_keyboard(order_id),
+            parse_mode="Markdown"
         )
         return
 
+    # 2. Получаем данные для принятия решения
     payment_id_from_db = order[3]
-    amount = str(order[5])
+    amount_str = str(order[5])
     confirmation_text = ""
 
-    # 2. Обрабатываем отмену в зависимости от типа билета
+    # 3. Обрабатываем отмену в зависимости от типа билета
 
     # СЦЕНАРИЙ 1: Отменяется билет, полученный по программе лояльности.
+    # Это ЕДИНСТВЕННЫЙ случай, когда мы возвращаем 5 баллов.
     if payment_id_from_db == 'loyalty_program':
         await db.set_loyalty_points(callback.from_user.id, 5)
         confirmation_text = f"эх, твой бесплатный билетик отменен. мы вернули тебе 5 баллов лояльности, можешь использовать их на другое мероприятие! ✨"
 
-    # СЦЕНАРИЙ 2: Отменяется платный билет (цена > 0).
-    elif float(amount) > 0:
+    # СЦЕНАРИЙ 2: Отменяется платный билет (включая те, что стали 0 руб из-за скидки).
+    # Мы определяем его по тому, что payment_id - это длинная строка от ЮKassa.
+    elif payment_id_from_db not in ['loyalty_program', 'generated_ticket']:
         try:
             idempotence_key = str(uuid.uuid4())
             refund = Refund.create({
-                "amount": {"value": amount, "currency": "RUB"},
+                "amount": {"value": amount_str, "currency": "RUB"},
                 "payment_id": payment_id_from_db
             }, idempotence_key)
 
@@ -196,7 +202,7 @@ async def final_cancel_booking(callback: CallbackQuery):
                 await db.decrement_loyalty_count(callback.from_user.id)
                 confirmation_text = f"эх, твой билетик на '{event['ShortName']}' отменен и деньги скоро вернутся!\n\nодин балл лояльности за этот билет забрали 🥲"
             else:
-                confirmation_text = f"не удалось оформить возврат (статус ЮKassa: {refund.status}). пожалуйста, обратись в службу заботы"
+                confirmation_text = f"не удалось оформить возврат (статус ЮKassa: {refund.status}). пожалуйста, обратись в службу заботы @cotvorenie_space"
 
         except Exception as e:
             logging.error(f"Ошибка возврата ЮKassa для заказа #{order_id}: {e}")
@@ -204,14 +210,14 @@ async def final_cancel_booking(callback: CallbackQuery):
 
     # СЦЕНАРИЙ 3: Отменяется билет на изначально бесплатное мероприятие.
     else:
-        confirmation_text = f"запись на бесплатное мероприятие '{event['ShortName']}' отменена!"
+        confirmation_text = f"запись на мероприятие '{event['ShortName']}' отменена!"
 
-    # 3. Обновляем статусы в наших системах в любом успешном случае
-    if "ошибка" not in confirmation_text and "Не удалось" not in confirmation_text:
+    # 4. Обновляем статусы в наших системах, только если отмена прошла успешно
+    if "ошибка" not in confirmation_text.lower() and "не удалось" not in confirmation_text.lower():
         await db.update_order_status(order_id, 'cancelled_by_user', 'cancelled')
         await gs.update_order_status_in_sheet(order_id, 'возврат')
 
-    # 4. Отправляем финальное сообщение пользователю
+    # 5. Отправляем финальное сообщение пользователю
     await callback.message.edit_text(confirmation_text)
 
 @router.callback_query(F.data == "get_checklist")
