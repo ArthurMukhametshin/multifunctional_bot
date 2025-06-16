@@ -55,8 +55,8 @@ async def issue_ticket(callback: CallbackQuery, bot: Bot, order_id: int, event: 
             "счетчик лояльности обнулен, начинаем копить снова!\n\n"
         )
 
-    # СЦЕНАРИЙ 2: Платное мероприятие (включая те, что со скидкой)
-    elif original_price > 0:
+    # СЦЕНАРИЙ 2: Билет был ОПЛАЧЕН реальными деньгами (цена > 0)
+    elif price > 0:
         await db.increment_loyalty_count(callback.from_user.id)
         loyalty_count_after = await db.get_loyalty_count(callback.from_user.id)
         caption_text = (
@@ -64,7 +64,7 @@ async def issue_ticket(callback: CallbackQuery, bot: Bot, order_id: int, event: 
             f"+1 балл в программе лояльности, теперь у тебя {loyalty_count_after} из 5!\n\n"
         )
 
-    # СЦЕНАРИЙ 3: Изначально бесплатное мероприятие (не по лояльности)
+    # СЦЕНАРИЙ 3: Билет бесплатный (изначально или из-за промокода), но НЕ по лояльности
     else:
         caption_text = f"твой билетик на бесплатное мероприятие «{event['ShortName']}» готов!\n\n"
 
